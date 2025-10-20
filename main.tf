@@ -139,19 +139,24 @@ resource "aws_route_table_association" "public_routing_table" {
 }
 
 resource "aws_route_table" "private_routetable" {
-  count  = var.create_private_subnets ? 1 : 0
+  count  = var.create_private_subnets ? length(local.az) : 0
   vpc_id = aws_vpc.vpc.id
 
-  tags = local.tags
+  tags = merge(
+    local.tags,
+    {
+      "Name" = format("%s-private-rt-%s", var.environment, element(local.az, count.index))
+    }
+  )
 }
 
 resource "aws_route" "private_route" {
-  count      = var.create_private_subnets ? 1 : 0
+  count      = var.create_private_subnets ? length(local.az) : 0
   depends_on = [aws_route_table.private_routetable]
 
-  route_table_id         = element(aws_route_table.private_routetable[*].id, 0)
+  route_table_id         = element(aws_route_table.private_routetable[*].id, count.index)
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = element(aws_nat_gateway.nat[*].id, 0)
+  nat_gateway_id         = element(aws_nat_gateway.nat[*].id, count.index)
 }
 
 resource "aws_subnet" "private_subnet" {
@@ -184,7 +189,7 @@ resource "aws_subnet" "private_subnet" {
 
 resource "aws_route_table_association" "private_routing_table" {
   subnet_id      = element(aws_subnet.private_subnet[*].id, count.index)
-  route_table_id = element(aws_route_table.private_routetable[*].id, 0)
+  route_table_id = element(aws_route_table.private_routetable[*].id, count.index)
   count          = var.create_private_subnets ? length(local.az) : 0
 }
 
@@ -216,10 +221,15 @@ resource "aws_vpc_endpoint_route_table_association" "public_s3" {
 }
 
 resource "aws_eip" "nat" {
-  count  = var.create_private_subnets ? 1 : 0
+  count  = var.create_private_subnets ? length(local.az) : 0
   domain = "vpc"
 
-  tags = local.tags
+  tags = merge(
+    local.tags,
+    {
+      "Name" = format("%s-nat-eip-%s", var.environment, element(local.az, count.index))
+    }
+  )
 }
 
 resource "aws_nat_gateway" "nat" {
